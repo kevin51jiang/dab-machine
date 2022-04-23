@@ -1,4 +1,4 @@
-import { POSE_LANDMARKS, POSE_CONNECTIONS } from "@mediapipe/pose";
+import { POSE_LANDMARKS } from "@mediapipe/pose";
 
 /**
  * Calculate angle between 3 points in 3D space.
@@ -62,35 +62,25 @@ const angleBetween3DCoords = (coord1, coord2, coord3) => {
   return Math.round(angle * 10) / 10;
 };
 
-const verticalAngleOfVector = (coord1, coord2) => {
-  if (!coord1 || !coord2) {
-    console.log(
-      "a vector doesn't exist to calc vertical angle from",
-      coord1,
-      coord2
-    );
-    return -1;
-  }
+const radToDeg = (r) => (r * 180) / Math.PI;
 
-  // ASsuming dot vector of x=1, y=0
-  const directionVector = [coord2.x - coord1.x, coord2.y - coord1.y];
+const angleBetween2DCoords = (coord1, coord2, coord3) => {
+  const vec1 = [coord2.x - coord1.x, coord2.y - coord1.y];
+  const vec2 = [coord3.x - coord2.x, coord3.y - coord2.y];
 
-  const vecMagnitude = Math.sqrt(
-    Math.pow(directionVector[0], 2) + Math.pow(directionVector[1], 2)
-  );
-
-  let angle = Math.acos(directionVector[0] / vecMagnitude) * (180 / Math.PI);
-  angle = Math.round(angle * 10) / 10;
-
-  return angle;
+  return angleBetween2DVectors(vec1, vec2);
 };
 
-const DAB_DIRECTIONS = {
-  rightDab: "rightDab",
-  leftDab: "leftDab",
+const angleBetween2DVectors = (vec1, vec2) => {
+  const dot = vec1[0] * vec2[0] + vec1[1] * vec2[1];
+  const magnitudes =
+    Math.sqrt(Math.pow(vec1[0], 2) + Math.pow(vec1[1], 2)) *
+    Math.sqrt(Math.pow(vec2[0], 2) + Math.pow(vec2[1], 2));
+
+  return radToDeg(Math.acos(dot / magnitudes));
 };
 
-const DAB_TYPES = {
+export const DAB_TYPES = {
   leftUpDab: "leftUpDab",
   leftSideDab: "leftSideDab",
   leftDownDab: "leftDownDab",
@@ -100,27 +90,53 @@ const DAB_TYPES = {
   notDab: "notDab",
 };
 
-const getVectorDirection = (coord1, coord2, armName) => {
-  const angle = verticalAngleOfVector(coord1, coord2);
-  console.log("angle", angle);
+const isChickenWing = (wrist, elbow, shoulder) => {
+  // use the wrist to elbow as the direction vector
+  const wristElbow = [wrist.x - elbow.x, wrist.y - elbow.y];
+  const shoulderElbow = [shoulder.x - elbow.x, shoulder.y - elbow.y];
 
-  // in the middle region, since angles (from top to bottom), go 90, 180, then 90 again.
-  if (angle < 30 || angle > 160) {
-    return "side";
+  const angle = angleBetween2DVectors(wristElbow, shoulderElbow);
+
+  // cutoff for not being a chicken wing
+  if (angle > 30 || wristElbow[0] === 0) {
+    return false;
   }
-  if (armName === "right") {
-    if (coord1.y > coord2.y) {
-      return "up";
-    } else {
-      return "down";
-    }
+
+  // now, determine the direction.
+  // this is solely based on forearm (wristElbow)
+  // we test the slope, aka simply the rise over run.
+//   const slopeDegrees = radToDeg(Math.atan2(-wristElbow[1], wristElbow[0]));
+  const slopeDegrees = radToDeg(Math.atan(wristElbow[1] / wristElbow[0]));
+  if (Math.abs(slopeDegrees) <= 25) {
+    return 0;
+  } else if (slopeDegrees > 25) {
+    return 1;
   } else {
-    // left
-    if (coord1.y < coord2.y) {
-      return "up";
-    } else {
-      return "down";
-    }
+    return -1;
+  }
+};
+
+const isStraightArm = (wrist, elbow, shoulder) => {
+  // all 3 should have the same "direction vector",
+  const wristElbow = [wrist.x - elbow.x, wrist.y - elbow.y];
+  const shoulderElbow = [shoulder.x - elbow.x, shoulder.y - elbow.y];
+
+  const angle = angleBetween2DVectors(wristElbow, shoulderElbow);
+
+
+  if (angle < 165 || angle > 195) {
+    return false;
+  }
+
+  //go for shoulder to wrist b/c elbow can be weird, and we already checked for elbow being too weird
+  const slopeRaw = (wrist.y - shoulder.y) / (wrist.x - shoulder.x);
+  const slopeDegrees = radToDeg(Math.atan(slopeRaw));
+  if (Math.abs(slopeDegrees) <= 20) {
+    return 0;
+  } else if (slopeDegrees > 20) {
+    return 1;
+  } else {
+    return -1;
   }
 };
 
@@ -138,104 +154,65 @@ export const classifyPose = (results) => {
     results[POSE_LANDMARKS.LEFT_WRIST]
   );
 
-  let dabDirection = null;
   if (rightElbowAngle < 65 && leftElbowAngle > 165) {
-    dabDirection = DAB_DIRECTIONS.rightDab;
-  } else if (leftElbowAngle < 65 && rightElbowAngle > 165) {
-    dabDirection = DAB_DIRECTIONS.leftDab;
-  } else {
-    dabDirection = DAB_TYPES.notDab;
-  }
-
-  //   if (dabDirection === DAB_TYPES.notDab) {
-  //     return DAB_DIRECTIONS.notDab;
-  //   }
-
-  const boneSets = {
-    leftForearm: {
-      bones: [
-        results[POSE_LANDMARKS.LEFT_ELBOW],
-        results[POSE_LANDMARKS.LEFT_WRIST],
-      ],
-    },
-    leftUpperarm: {
-      bones: [
-        results[POSE_LANDMARKS.LEFT_SHOULDER],
-        results[POSE_LANDMARKS.LEFT_ELBOW],
-      ],
-    },
-    rightForearm: {
-      bones: [
-        results[POSE_LANDMARKS.RIGHT_WRIST],
-        results[POSE_LANDMARKS.RIGHT_ELBOW],
-      ],
-    },
-    rightUpperarm: {
-      bones: [
-        results[POSE_LANDMARKS.RIGHT_ELBOW],
-        results[POSE_LANDMARKS.RIGHT_SHOULDER],
-      ],
-    },
-  };
-
-  // get the directions of all the bonesets
-  for (const [boneSet, bonesVal] of Object.entries(boneSets)) {
-    boneSets[boneSet].direction = getVectorDirection(
-      bonesVal.bones[0],
-      bonesVal.bones[1],
-      boneSet.includes("right") ? "right" : "left"
+    // rightDab
+    // if it's right dab, that means right arm is the chicken wing, left arm is striaght.
+    const rightArmDir = isChickenWing(
+      results[POSE_LANDMARKS.RIGHT_WRIST],
+      results[POSE_LANDMARKS.RIGHT_ELBOW],
+      results[POSE_LANDMARKS.RIGHT_SHOULDER]
     );
+    const leftArmDir = isStraightArm(
+      results[POSE_LANDMARKS.LEFT_WRIST],
+      results[POSE_LANDMARKS.LEFT_ELBOW],
+      results[POSE_LANDMARKS.LEFT_SHOULDER]
+    );
+
+    // console.log('right', leftArmDir, rightArmDir)
+    if (typeof rightArmDir === 'boolean'|| typeof leftArmDir === 'boolean' || !(rightArmDir === leftArmDir)) {
+      return DAB_TYPES.notDab;
+    }
+
+
+    const armDir = rightArmDir
+    if (armDir === 1) {
+        return DAB_TYPES.rightDownDab
+    } else if (armDir === 0) {
+        return DAB_TYPES.rightSideDab
+    } else {
+        return DAB_TYPES.rightUpDab
+    }
+  } else if (leftElbowAngle < 65 && rightElbowAngle > 165) {
+    // leftDab
+    // if it's left dab, that means left arm is the chicken wing, right arm is striaght.
+    const rightArmDir = isStraightArm(
+      results[POSE_LANDMARKS.RIGHT_WRIST],
+      results[POSE_LANDMARKS.RIGHT_ELBOW],
+      results[POSE_LANDMARKS.RIGHT_SHOULDER]
+    );
+    const leftArmDir = isChickenWing(
+      results[POSE_LANDMARKS.LEFT_WRIST],
+      results[POSE_LANDMARKS.LEFT_ELBOW],
+      results[POSE_LANDMARKS.LEFT_SHOULDER]
+    );
+
+    // console.log('left', leftArmDir, rightArmDir)
+    if (typeof rightArmDir === 'boolean'|| typeof leftArmDir === 'boolean' || !(rightArmDir === leftArmDir)) {
+      return DAB_TYPES.notDab;
+    }
+
+
+    const armDir = rightArmDir
+    if (armDir === 1) {
+        return DAB_TYPES.leftUpDab
+    } else if (armDir === 0) {
+        return DAB_TYPES.leftSideDab
+    } else {
+        return DAB_TYPES.leftDownDab
+    }
+
+
   }
 
-  let dabType = DAB_TYPES.notDab;
-  if (dabDirection === DAB_DIRECTIONS.leftDab) {
-    if (
-      boneSets.leftForearm.direction === "up" &&
-      boneSets.leftUpperarm.direction === "down" &&
-      boneSets.rightForearm.direction === "up" &&
-      boneSets.rightUpperarm.direction === "up"
-    ) {
-      dabType = DAB_TYPES.leftDownDab;
-    } else if (
-      boneSets.leftForearm.direction === "side" &&
-      boneSets.leftUpperarm.direction === "side" &&
-      boneSets.rightForearm.direction === "side" &&
-      boneSets.rightUpperarm.direction === "side"
-    ) {
-      dabType = DAB_TYPES.leftSideDab;
-    } else if (
-      boneSets.leftForearm.direction === "down" &&
-      boneSets.leftUpperarm.direction === "up" &&
-      boneSets.rightForearm.direction === "down" &&
-      boneSets.rightUpperarm.direction === "down"
-    ) {
-      dabType = DAB_TYPES.leftUpDab;
-    }
-  } else if (dabDirection === DAB_DIRECTIONS.rightDab) {
-    if (
-      boneSets.leftForearm.direction === "up" &&
-      boneSets.leftUpperarm.direction === "up" &&
-      boneSets.rightForearm.direction === "up" &&
-      boneSets.rightUpperarm.direction === "down"
-    ) {
-      dabType = DAB_TYPES.rightDownDab;
-    } else if (
-      boneSets.leftForearm.direction === "side" &&
-      boneSets.leftUpperarm.direction === "side" &&
-      boneSets.rightForearm.direction === "side" &&
-      boneSets.rightUpperarm.direction === "side"
-    ) {
-      dabType = DAB_TYPES.rightSideDab;
-    } else if (
-      boneSets.leftForearm.direction === "down" &&
-      boneSets.leftUpperarm.direction === "down" &&
-      boneSets.rightForearm.direction === "down" &&
-      boneSets.rightUpperarm.direction === "up"
-    ) {
-      dabType = DAB_TYPES.rightUpDab;
-    }
-  }
-
-  console.log(dabDirection, dabType, boneSets);
-  return dabType;
+  return DAB_TYPES.notDab;
 };

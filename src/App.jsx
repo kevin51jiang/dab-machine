@@ -5,22 +5,27 @@ import { Pose, POSE_LANDMARKS, POSE_CONNECTIONS } from "@mediapipe/pose";
 import {
   drawConnectors,
   drawLandmarks,
-  lerp
+  lerp,
 } from "@mediapipe/drawing_utils/drawing_utils";
 import { Camera } from "@mediapipe/camera_utils/camera_utils";
 import { classifyPose } from "./utils";
 
+import * as Tone from "tone";
+
 function App() {
   const webcamRef = useRef(null);
-
+  const playerRef = useRef(null);
   const canvasRef = useRef(null);
   const poseRef = useRef(null);
+  const prevKeyRef = useRef(null);
+  const toneRef = useRef(new Tone.Synth().toDestination());
+  const toneNowRef = useRef(null);
 
   const [isClassifying, setIsClassifying] = useState(true);
 
   useEffect(() => {
-    const pose = createNewPose()
-    poseRef.current = pose
+    const pose = createNewPose();
+    poseRef.current = pose;
 
     if (
       typeof webcamRef.current !== "undefined" &&
@@ -54,8 +59,8 @@ function App() {
 
     pose.onResults(onResults);
 
-    return pose
-  }
+    return pose;
+  };
 
   const onResults = (results) => {
     // // Hide the spinner.
@@ -89,7 +94,7 @@ function App() {
     canvasCtx.lineWidth = 5;
 
     if (!results.poseLandmarks) {
-      return
+      return;
     }
 
     // Pose...
@@ -104,22 +109,70 @@ function App() {
       { visibilityMin: 0.65, color: "white", fillColor: "rgb(255,138,0)" }
     );
 
-    classifyPose(results.poseLandmarks)
-    // console.log("Classification: ", classifyPose(results.poseLandmarks))
+    const pose = classifyPose(results.poseLandmarks);
+    console.log("Classification: ", pose);
+
+    const horizontalScore = pose.includes("left") ? 3 : 0;
+    const verticalScore = pose.includes("Up")
+      ? 1
+      : pose.includes("Side")
+      ? 2
+      : pose.includes("Down")
+      ? 3
+      : 0;
+    const totalScore = horizontalScore + verticalScore;
+
+    let key = "";
+    switch (totalScore) {
+      case 1:
+        key = "C4";
+        break;
+      case 2:
+        key = "D4";
+        break;
+      case 3:
+        key = "E4";
+        break;
+      case 4:
+        key = "F4";
+        break;
+      case 5:
+        key = "G4";
+        break;
+      case 6:
+        key = "A4";
+        break;
+      default:
+        key = "";
+        break;
+    }
+
+    console.log(key, prevKeyRef.current);
+    // switch note
+
+    // stop playing (double no dab)
+    if (key !== prevKeyRef.current) {
+      if (key && key.length > 0) {
+        toneRef.current?.triggerRelease();
+        toneRef.current.triggerAttack(key, Tone.now());
+      }
+    }
+
+    // double frame of nothing recognized
+    if (key === "" && prevKeyRef.current === "") {
+      toneRef.current?.triggerRelease();
+    }
+
+    prevKeyRef.current = key;
   };
 
   return (
     <div>
       <button
-        onClick={() => {
-          if (isClassifying) {
-            console.log("CLOSING");
-            poseRef.current.close();
-          } else {
-            console.log("re initializing");
-            // poseRef.current.onResults(onResults);
-            poseRef.current = createNewPose()
-          }
+        onClick={async () => {
+          await Tone.start();
+          console.log("audio is ready");
+          toneNowRef.current = Tone.now();
         }}
       >
         Is classifying? {isClassifying}
@@ -138,8 +191,8 @@ function App() {
           right: "0",
           textAlign: "center",
           zindex: 9,
-          width: 1280,
-          height: 720,
+          width: 640,
+          height: 480,
         }}
       />
       <canvas
@@ -152,8 +205,8 @@ function App() {
           right: "0",
           textAlign: "center",
           zindex: 9,
-          width: 1280,
-          height: 720,
+          width: 640,
+          height: 480,
         }}
       ></canvas>
     </div>
