@@ -1,7 +1,4 @@
-import { useState } from "react";
-import { useEffect } from "react";
-import { useRef } from "react";
-import { forwardRef } from "react";
+import { useState, useEffect, forwardRef } from "react";
 
 import Select from "react-select";
 
@@ -19,18 +16,19 @@ export const NoteSetter = forwardRef(({ noteIndex }, ref) => {
 
   useEffect(() => {
     ref.current[noteIndex] = selectedNote;
-  }, [selectedNote]);
+  }, [selectedNote, noteIndex, ref]);
 
   return (
     <span>
       <Select
-        className="basic-single"
-        classNamePrefix="select"
         defaultValue={{ value: selectedNote, label: selectedNote }}
         isSearchable={true}
         name={`note-select-${noteIndex}`}
         options={selectOptions}
         onChange={(newVal) => setSelectedNote(newVal.value)}
+        styles={{
+       
+        }}
       />
     </span>
   );

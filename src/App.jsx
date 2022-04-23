@@ -1,11 +1,10 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import Webcam from "react-webcam";
 
 import { Pose, POSE_LANDMARKS, POSE_CONNECTIONS } from "@mediapipe/pose";
 import {
   drawConnectors,
   drawLandmarks,
-  lerp,
 } from "@mediapipe/drawing_utils/drawing_utils";
 import { Camera } from "@mediapipe/camera_utils/camera_utils";
 import { classifyPose } from "./utils";
@@ -20,10 +19,24 @@ function App() {
   const prevKeyRef = useRef(null);
   const toneRef = useRef(new Tone.Synth().toDestination());
   const toneNowRef = useRef(null);
-  const toneListRef = useRef([0, "C4", "D4", "E4", "F4", "G4", "A4"]);
+  const toneListRef = useRef([0, "E5", "Eb5", "B4", "D5", "C5", "A4"]);
 
   useEffect(() => {
-    const pose = createNewPose();
+    const pose = new Pose({
+      locateFile: (file) => {
+        console.log(`${file}`);
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.4.1633558788/${file}`;
+      },
+    });
+
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+
+    pose.onResults(onResults);
     poseRef.current = pose;
 
     if (
@@ -40,26 +53,6 @@ function App() {
       camera.start();
     }
   }, []);
-
-  const createNewPose = () => {
-    const pose = new Pose({
-      locateFile: (file) => {
-        console.log(`${file}`);
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.4.1633558788/${file}`;
-      },
-    });
-
-    pose.setOptions({
-      modelComplexity: 1,
-      smoothLandmarks: true,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
-
-    pose.onResults(onResults);
-
-    return pose;
-  };
 
   const onResults = (results) => {
     // // Update the frame rate.
@@ -160,8 +153,8 @@ function App() {
           height: "1px",
         }}
       />
-      <div>
-        <span style={{ maxWidth: "5rem" }}>
+      <div style={{display: 'flex', flexDirection: 'row',margin: 'auto'}}>
+        <span>
           <NoteSetter noteIndex="1" ref={toneListRef} />
           <NoteSetter noteIndex="2" ref={toneListRef} />
           <NoteSetter noteIndex="3" ref={toneListRef} />
@@ -169,10 +162,6 @@ function App() {
         <canvas
           ref={canvasRef}
           style={{
-            marginLeft: "auto",
-            marginRight: "auto",
-            left: "0",
-            right: "0",
             textAlign: "center",
             zindex: 9,
             width: 640,
@@ -180,7 +169,7 @@ function App() {
           }}
         />
 
-        <span style={{ maxWidth: "5rem" }}>
+        <span>
           <NoteSetter noteIndex="4" ref={toneListRef} />
           <NoteSetter noteIndex="5" ref={toneListRef} />
           <NoteSetter noteIndex="6" ref={toneListRef} />

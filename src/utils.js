@@ -64,12 +64,7 @@ const angleBetween3DCoords = (coord1, coord2, coord3) => {
 
 const radToDeg = (r) => (r * 180) / Math.PI;
 
-const angleBetween2DCoords = (coord1, coord2, coord3) => {
-  const vec1 = [coord2.x - coord1.x, coord2.y - coord1.y];
-  const vec2 = [coord3.x - coord2.x, coord3.y - coord2.y];
 
-  return angleBetween2DVectors(vec1, vec2);
-};
 
 const angleBetween2DVectors = (vec1, vec2) => {
   const dot = vec1[0] * vec2[0] + vec1[1] * vec2[1];
