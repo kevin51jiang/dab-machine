@@ -11,17 +11,16 @@ import { Camera } from "@mediapipe/camera_utils/camera_utils";
 import { classifyPose } from "./utils";
 
 import * as Tone from "tone";
+import { NoteSetter } from "./NoteSetter";
 
 function App() {
   const webcamRef = useRef(null);
-  const playerRef = useRef(null);
   const canvasRef = useRef(null);
   const poseRef = useRef(null);
   const prevKeyRef = useRef(null);
   const toneRef = useRef(new Tone.Synth().toDestination());
   const toneNowRef = useRef(null);
-
-  const [isClassifying, setIsClassifying] = useState(true);
+  const toneListRef = useRef([0, "C4", "D4", "E4", "F4", "G4", "A4"]);
 
   useEffect(() => {
     const pose = createNewPose();
@@ -63,15 +62,8 @@ function App() {
   };
 
   const onResults = (results) => {
-    // // Hide the spinner.
-    // document.body.classList.add("loaded");
-
     // // Update the frame rate.
     // fpsControl.tick();
-
-    if (!isClassifying) {
-      return;
-    }
 
     const videoWidth = webcamRef.current.video.videoWidth;
     const videoHeight = webcamRef.current.video.videoHeight;
@@ -79,7 +71,6 @@ function App() {
     canvasRef.current.height = videoHeight;
     const canvasElement = canvasRef.current;
     const canvasCtx = canvasElement.getContext("2d");
-    // removeLandmarks(results);
     canvasCtx.save();
     canvasCtx.clearRect(0, 0, videoWidth, videoHeight);
     canvasCtx.translate(videoWidth, 0);
@@ -123,28 +114,8 @@ function App() {
     const totalScore = horizontalScore + verticalScore;
 
     let key = "";
-    switch (totalScore) {
-      case 1:
-        key = "C4";
-        break;
-      case 2:
-        key = "D4";
-        break;
-      case 3:
-        key = "E4";
-        break;
-      case 4:
-        key = "F4";
-        break;
-      case 5:
-        key = "G4";
-        break;
-      case 6:
-        key = "A4";
-        break;
-      default:
-        key = "";
-        break;
+    if (totalScore > 0) {
+      key = toneListRef.current[totalScore];
     }
 
     console.log(key, prevKeyRef.current);
@@ -154,7 +125,7 @@ function App() {
     if (key !== prevKeyRef.current) {
       if (key && key.length > 0) {
         toneRef.current?.triggerRelease();
-        toneRef.current.triggerAttack(key, Tone.now());
+        toneRef.current.triggerAttack(key, Tone.now() + 0.05);
       }
     }
 
@@ -175,7 +146,7 @@ function App() {
           toneNowRef.current = Tone.now();
         }}
       >
-        Is classifying? {isClassifying}
+        Allow Audio
       </button>
       <span>CLASSIFICATION STATUS!!!1</span>
       <br />
@@ -184,31 +155,37 @@ function App() {
         mirrored={true}
         ref={webcamRef}
         style={{
-          position: "absolute",
-          marginLeft: "auto",
-          marginRight: "auto",
-          left: "0",
-          right: "0",
-          textAlign: "center",
-          zindex: 9,
-          width: 640,
-          height: 480,
+          visibility: "hidden",
+          width: "1px",
+          height: "1px",
         }}
       />
-      <canvas
-        ref={canvasRef}
-        style={{
-          position: "absolute",
-          marginLeft: "auto",
-          marginRight: "auto",
-          left: "0",
-          right: "0",
-          textAlign: "center",
-          zindex: 9,
-          width: 640,
-          height: 480,
-        }}
-      ></canvas>
+      <div>
+        <span style={{ maxWidth: "5rem" }}>
+          <NoteSetter noteIndex="1" ref={toneListRef} />
+          <NoteSetter noteIndex="2" ref={toneListRef} />
+          <NoteSetter noteIndex="3" ref={toneListRef} />
+        </span>
+        <canvas
+          ref={canvasRef}
+          style={{
+            marginLeft: "auto",
+            marginRight: "auto",
+            left: "0",
+            right: "0",
+            textAlign: "center",
+            zindex: 9,
+            width: 640,
+            height: 480,
+          }}
+        />
+
+        <span style={{ maxWidth: "5rem" }}>
+          <NoteSetter noteIndex="4" ref={toneListRef} />
+          <NoteSetter noteIndex="5" ref={toneListRef} />
+          <NoteSetter noteIndex="6" ref={toneListRef} />
+        </span>
+      </div>
     </div>
   );
 }
